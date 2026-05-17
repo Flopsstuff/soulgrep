@@ -15,6 +15,11 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.78",
+    "@ai-sdk/openai": "^3.0.64",
+    "@ai-sdk/react": "^3.0.186",
+    "@openrouter/ai-sdk-provider": "^2.9.0",
+    "ai": "^6.0.184",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router": "^7.15.1"
@@ -42,5 +47,6 @@
       "esbuild",
       "workerd"
     ]
-  }
+  },
+  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
 }
