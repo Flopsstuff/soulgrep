@@ -1,0 +1,46 @@
+{
+  "name": "soulgrep",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "deploy": "pnpm build && wrangler deploy",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router": "^7.15.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.15",
+    "@cloudflare/vite-plugin": "^1.37.1",
+    "@tailwindcss/vite": "^4.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/ui": "^4.1.6",
+    "jsdom": "^29.1.1",
+    "tailwindcss": "^4.3.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12",
+    "vitest": "^4.1.6",
+    "wrangler": "^4.92.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}
