@@ -1,33 +1,41 @@
 import { generateText } from 'ai'
 import { buildModel } from './buildModel'
-import type { PersonaCorpusChunk, Side } from './persona-corpus'
-import { getSignalsSystemPrompt } from './prompts'
+import type { Side } from './persona-corpus'
+import { getSummarySystemPrompt } from './prompts'
 import type { ProviderId } from './providers'
 
-export type SignalsResult = { ok: true; signals: string } | { ok: false; error: string }
+export type SummaryResult = { ok: true; summary: string } | { ok: false; error: string }
 
-export type ExtractSignalsArgs = {
+export type SummaryFragment = {
+  chunkId: string
+  signals: string
+}
+
+export type GenerateSummaryArgs = {
   providerId: ProviderId
   key: string
   modelId: string
-  chunk: PersonaCorpusChunk
   side: Side
+  fragments: SummaryFragment[]
   signal?: AbortSignal
 }
 
-export async function extractSignals(args: ExtractSignalsArgs): Promise<SignalsResult> {
-  const { providerId, key, modelId, chunk, side, signal } = args
+export async function generateSummary(args: GenerateSummaryArgs): Promise<SummaryResult> {
+  const { providerId, key, modelId, side, fragments, signal } = args
+  if (fragments.length === 0) {
+    return { ok: false, error: 'no fragments to summarize' }
+  }
   try {
     const result = await generateText({
       model: buildModel(providerId, key.trim(), modelId.trim()),
-      system: getSignalsSystemPrompt(side),
-      prompt: chunk.text,
-      maxOutputTokens: 8192,
+      system: getSummarySystemPrompt(side),
+      prompt: buildUserPrompt(fragments),
+      maxOutputTokens: 16384,
       abortSignal: signal,
     })
-    const signals = result.text.trim()
-    if (signals !== '') {
-      return { ok: true, signals }
+    const summary = result.text.trim()
+    if (summary !== '') {
+      return { ok: true, summary }
     }
     return { ok: false, error: describeEmpty(result) }
   } catch (e) {
@@ -36,6 +44,12 @@ export async function extractSignals(args: ExtractSignalsArgs): Promise<SignalsR
       error: e instanceof Error ? e.message : String(e),
     }
   }
+}
+
+function buildUserPrompt(fragments: SummaryFragment[]): string {
+  const header = `Below are extracted behavioral signals from ${fragments.length} chat fragment(s), in chronological order. Synthesize them into the portrait described in your instructions.\n\n`
+  const body = fragments.map((f) => `## fragment ${f.chunkId}\n${f.signals}`).join('\n\n---\n\n')
+  return `${header}${body}`
 }
 
 function describeEmpty(result: Awaited<ReturnType<typeof generateText>>): string {
@@ -47,13 +61,6 @@ function describeEmpty(result: Awaited<ReturnType<typeof generateText>>): string
     const reasoning = usage.reasoningTokens
     if (out !== undefined) parts.push(`outputTokens=${out}`)
     if (reasoning !== undefined) parts.push(`reasoningTokens=${reasoning}`)
-  }
-  const reasoningText =
-    typeof (result as { reasoningText?: string }).reasoningText === 'string'
-      ? (result as { reasoningText?: string }).reasoningText
-      : undefined
-  if (reasoningText && reasoningText.trim() !== '') {
-    parts.push(`reasoning present (${reasoningText.length} chars) but no visible text`)
   }
   if (result.finishReason === 'length') {
     parts.push('— hit max output tokens, try a larger limit or non-reasoning model')

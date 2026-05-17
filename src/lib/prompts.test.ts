@@ -1,50 +1,54 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  clearPsychotypePromptOverride,
-  DEFAULT_PSYCHOTYPE_SYSTEM_PROMPT,
-  getPsychotypePromptOverride,
-  getPsychotypePromptSource,
-  getPsychotypeSystemPrompt,
-  SAMPLE_PSYCHOTYPE_OVERRIDE_PROMPT,
-  seedSamplePsychotypePromptOverride,
-  setPsychotypePromptOverride,
+  clearSignalsPromptOverride,
+  DEFAULT_SIGNALS_SYSTEM_TEMPLATE,
+  getSignalsPromptOverride,
+  getSignalsPromptSource,
+  getSignalsPromptTemplate,
+  getSignalsSystemPrompt,
+  setSignalsPromptOverride,
 } from './prompts'
 
-describe('prompts lib', () => {
+describe('signals prompt', () => {
   beforeEach(() => {
     localStorage.clear()
   })
 
-  it('returns default prompt when override is missing', () => {
-    expect(getPsychotypeSystemPrompt()).toBe(DEFAULT_PSYCHOTYPE_SYSTEM_PROMPT)
-    expect(getPsychotypePromptSource()).toBe('default')
+  it('returns default template when override is missing', () => {
+    expect(getSignalsPromptTemplate()).toBe(DEFAULT_SIGNALS_SYSTEM_TEMPLATE)
+    expect(getSignalsPromptSource()).toBe('default')
   })
 
   it('uses override when provided', () => {
-    setPsychotypePromptOverride('Custom prompt')
-    expect(getPsychotypePromptOverride()).toBe('Custom prompt')
-    expect(getPsychotypeSystemPrompt()).toBe('Custom prompt')
-    expect(getPsychotypePromptSource()).toBe('custom')
+    setSignalsPromptOverride('Custom signals template')
+    expect(getSignalsPromptOverride()).toBe('Custom signals template')
+    expect(getSignalsPromptTemplate()).toBe('Custom signals template')
+    expect(getSignalsPromptSource()).toBe('custom')
   })
 
   it('treats whitespace override as empty', () => {
-    setPsychotypePromptOverride('   ')
-    expect(getPsychotypePromptOverride()).toBe('')
-    expect(getPsychotypeSystemPrompt()).toBe(DEFAULT_PSYCHOTYPE_SYSTEM_PROMPT)
-    expect(getPsychotypePromptSource()).toBe('default')
+    setSignalsPromptOverride('   ')
+    expect(getSignalsPromptOverride()).toBe('')
+    expect(getSignalsPromptTemplate()).toBe(DEFAULT_SIGNALS_SYSTEM_TEMPLATE)
+    expect(getSignalsPromptSource()).toBe('default')
   })
 
   it('can clear override explicitly', () => {
-    setPsychotypePromptOverride('Custom prompt')
-    clearPsychotypePromptOverride()
-    expect(getPsychotypePromptOverride()).toBe('')
-    expect(getPsychotypePromptSource()).toBe('default')
+    setSignalsPromptOverride('Custom signals template')
+    clearSignalsPromptOverride()
+    expect(getSignalsPromptOverride()).toBe('')
+    expect(getSignalsPromptSource()).toBe('default')
   })
 
-  it('seeds sample override into localStorage', () => {
-    seedSamplePsychotypePromptOverride()
-    expect(getPsychotypePromptOverride()).toBe(SAMPLE_PSYCHOTYPE_OVERRIDE_PROMPT)
-    expect(getPsychotypeSystemPrompt()).toBe(SAMPLE_PSYCHOTYPE_OVERRIDE_PROMPT)
-    expect(getPsychotypePromptSource()).toBe('custom')
+  it('substitutes side-specific markers and labels into the template', () => {
+    setSignalsPromptOverride(
+      'subject={{SUBJECT_LABEL}} marker={{SUBJECT_MARKER}} context={{CONTEXT_LABEL}} ctxMarker={{CONTEXT_MARKER}}',
+    )
+    expect(getSignalsSystemPrompt('outgoing')).toBe(
+      'subject=outgoing marker==> context=incoming ctxMarker=<=',
+    )
+    expect(getSignalsSystemPrompt('incoming')).toBe(
+      'subject=incoming marker=<= context=outgoing ctxMarker==>',
+    )
   })
 })

@@ -7,8 +7,8 @@ import { runCorpusInWorker } from '../lib/runCorpusInWorker.ts'
 const DEFAULT_OPTIONS: BuildPersonaCorpusOptions = {
   minCharsPerChunk: 4000,
   maxCharsPerChunk: 100_000,
-  maxWordsPerChunk: 10_000,
-  maxMessagesPerChunk: 3000,
+  maxWordsPerChunk: 3_000,
+  maxMessagesPerChunk: 1000,
   dropShortMessages: false,
   minMessageLength: 3,
   speakerFormat: 'symbols',

@@ -25,8 +25,11 @@ async function main() {
     speakerFormat: args.speakerFormat,
   })
 
-  const targetId = normalizeTargetId(rawExport.id)
-  const outputPath = path.resolve(process.cwd(), args.output || `data/clean/chat-${targetId}.jsonl`)
+  const counterpartId = normalizeCounterpartId(rawExport.id)
+  const outputPath = path.resolve(
+    process.cwd(),
+    args.output || `data/clean/chat-${counterpartId}.jsonl`,
+  )
   await mkdir(path.dirname(outputPath), { recursive: true })
   for (const chunk of chunks) {
     process.stdout.write(
@@ -46,7 +49,7 @@ async function main() {
   )
 
   process.stdout.write(
-    `Saved ${chunks.length} chunks for target "${targetId}" to ${path.relative(
+    `Saved ${chunks.length} chunks for counterpart "${counterpartId}" to ${path.relative(
       process.cwd(),
       outputPath,
     )}\n`,
@@ -59,8 +62,8 @@ function parseArgs(argv) {
     output: '',
     minCharsPerChunk: 4000,
     maxCharsPerChunk: 100_000,
-    maxWordsPerChunk: 10_000,
-    maxMessagesPerChunk: 3000,
+    maxWordsPerChunk: 3_000,
+    maxMessagesPerChunk: 1000,
     dropShortMessages: false,
     minMessageLength: 3,
     speakerFormat: 'symbols',
@@ -121,7 +124,7 @@ function validateArgs(args) {
   }
 }
 
-function normalizeTargetId(rawId) {
+function normalizeCounterpartId(rawId) {
   if (rawId === undefined || rawId === null) {
     throw new Error('Root "id" is required in chat export')
   }
@@ -145,7 +148,7 @@ Options:
   --max-chars <number>         Max chars per chunk (default: 100000)
   --max-words <number>         Max words per chunk (default: 10000)
   --max-messages <number>      Max messages per chunk (default: 1000)
-  --speaker-format <value>     "symbols" (> / <) or "roles" (default: symbols)
+  --speaker-format <value>     "symbols" (=> outgoing / <= incoming) or "roles" (default: symbols)
   --drop-short-messages        Drop low-signal short messages (default: false)
   --min-message-length <num>   Min length when drop short is enabled (default: 3)
 `)

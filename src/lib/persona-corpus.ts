@@ -49,7 +49,7 @@ function collectCleanMessages(
   rawExport: RawChatExport,
   options: BuildPersonaCorpusOptions,
 ): string[] {
-  const ownerFromId = resolveOwnerFromId(rawExport)
+  const counterpartFromId = resolveCounterpartFromId(rawExport)
   const speakerMarks = resolveSpeakerMarks(options.speakerFormat)
   const messages = rawExport.messages ?? []
   const result: CleanMessage[] = []
@@ -65,7 +65,7 @@ function collectCleanMessages(
       continue
     }
 
-    const speaker: Side = message.from_id === ownerFromId ? 'outgoing' : 'incoming'
+    const speaker: Side = message.from_id === counterpartFromId ? 'incoming' : 'outgoing'
     const previous = result[result.length - 1]
 
     if (previous && previous.speaker === speaker) {
@@ -86,7 +86,7 @@ function collectCleanMessages(
   })
 }
 
-function resolveOwnerFromId(rawExport: RawChatExport): string {
+function resolveCounterpartFromId(rawExport: RawChatExport): string {
   if (rawExport.id === undefined || rawExport.id === null) {
     throw new Error('Root "id" is required in chat export')
   }

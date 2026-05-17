@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { dropSession, getSession } from '../lib/analysisStore'
 import { extractSignals } from '../lib/extractSignals'
+import { generateSummary } from '../lib/generateSummary'
 import { useActiveProvider, useStoredKey, useStoredModel } from '../lib/keys'
 import { type PersonaCorpusChunk, SIDE_MARKERS, type Side } from '../lib/persona-corpus'
 import { PROVIDERS, type ProviderId } from '../lib/providers'
@@ -23,6 +24,12 @@ type Job = {
 }
 
 type RunState = 'idle' | 'running' | 'done'
+
+type SummaryState =
+  | { status: 'idle' }
+  | { status: 'running'; side: Side; fragmentCount: number }
+  | { status: 'done'; side: Side; fragmentCount: number; summary: string }
+  | { status: 'error'; side: Side; fragmentCount: number; error: string }
 
 export default function Analyze() {
   const location = useLocation()
@@ -62,7 +69,9 @@ function AnalyzeBody({
   )
   const [runState, setRunState] = useState<RunState>('idle')
   const [activeSide, setActiveSide] = useState<Side | null>(null)
+  const [summary, setSummary] = useState<SummaryState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
+  const summaryAbortRef = useRef<AbortController | null>(null)
 
   const runOne = useCallback(
     async (index: number, side: Side, signal?: AbortSignal) => {
@@ -94,6 +103,10 @@ function AnalyzeBody({
   const onStart = useCallback(
     async (side: Side) => {
       if (key.trim() === '') return
+      // Starting a new pool invalidates any previous summary — abort and reset.
+      summaryAbortRef.current?.abort()
+      summaryAbortRef.current = null
+      setSummary({ status: 'idle' })
       const controller = new AbortController()
       abortRef.current = controller
       setActiveSide(side)
@@ -123,6 +136,47 @@ function AnalyzeBody({
     },
     [runOne, activeSide],
   )
+
+  const onSummary = useCallback(async () => {
+    if (!activeSide || key.trim() === '') return
+    const fragments = jobs
+      .filter((j) => j.status === 'done' && j.result)
+      .map((j) => ({ chunkId: j.chunk.chunk_id, signals: j.result as string }))
+    if (fragments.length === 0) return
+    const controller = new AbortController()
+    summaryAbortRef.current = controller
+    setSummary({ status: 'running', side: activeSide, fragmentCount: fragments.length })
+    const result = await generateSummary({
+      providerId,
+      key,
+      modelId,
+      side: activeSide,
+      fragments,
+      signal: controller.signal,
+    })
+    summaryAbortRef.current = null
+    setSummary(
+      result.ok
+        ? {
+            status: 'done',
+            side: activeSide,
+            fragmentCount: fragments.length,
+            summary: result.summary,
+          }
+        : {
+            status: 'error',
+            side: activeSide,
+            fragmentCount: fragments.length,
+            error: result.error,
+          },
+    )
+  }, [activeSide, jobs, providerId, key, modelId])
+
+  const onSummaryCancel = useCallback(() => {
+    summaryAbortRef.current?.abort()
+    summaryAbortRef.current = null
+    setSummary({ status: 'idle' })
+  }, [])
 
   const stats = useMemo(() => {
     let done = 0
@@ -199,14 +253,33 @@ function AnalyzeBody({
                 Cancel
               </button>
             )}
-            <button
-              type="button"
-              disabled
-              title="Aggregation step — coming next"
-              className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-neutral-500 text-xs disabled:cursor-not-allowed"
-            >
-              Run summary →
-            </button>
+            {summary.status === 'running' ? (
+              <button
+                type="button"
+                onClick={onSummaryCancel}
+                className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
+              >
+                Cancel summary
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onSummary}
+                disabled={!hasKey || !activeSide || stats.done === 0 || isRunning}
+                title={
+                  !activeSide
+                    ? 'Pick a side first'
+                    : stats.done === 0
+                      ? 'Need at least one finished chunk'
+                      : isRunning
+                        ? 'Wait for chunk analysis to finish'
+                        : 'Synthesize a portrait from finished chunks'
+                }
+                className="rounded-md border border-emerald-700 bg-emerald-800 px-3 py-1.5 text-emerald-50 text-xs hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Run summary →
+              </button>
+            )}
           </div>
         </div>
         {!hasKey && (
@@ -227,9 +300,16 @@ function AnalyzeBody({
         total={stats.total}
       />
 
+      {summary.status !== 'idle' && <SummaryPanel summary={summary} />}
+
       <ul className="space-y-2">
         {jobs.map((job, i) => (
-          <JobItem key={job.chunk.chunk_id} job={job} onRetry={() => onRetry(i)} />
+          <JobItem
+            key={job.chunk.chunk_id}
+            job={job}
+            activeSide={activeSide}
+            onRetry={() => onRetry(i)}
+          />
         ))}
       </ul>
 
@@ -268,7 +348,15 @@ function ProgressBar({
   )
 }
 
-function JobItem({ job, onRetry }: { job: Job; onRetry: () => void }) {
+function JobItem({
+  job,
+  activeSide,
+  onRetry,
+}: {
+  job: Job
+  activeSide: Side | null
+  onRetry: () => void
+}) {
   return (
     <li className="rounded-md border border-neutral-800 bg-neutral-900/30">
       <details>
@@ -311,13 +399,83 @@ function JobItem({ job, onRetry }: { job: Job; onRetry: () => void }) {
             <summary className="cursor-pointer text-neutral-500 text-xs hover:text-neutral-300">
               Show chunk text
             </summary>
-            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-neutral-400 text-xs">
-              {job.chunk.text}
+            {activeSide ? (
+              <p className="mt-2 text-neutral-500 text-xs">
+                Highlighted lines are the SUBJECT —{' '}
+                <strong className="text-emerald-300">{SIDE_LABEL[activeSide]}</strong>{' '}
+                <span className="font-mono">({SIDE_MARKERS[activeSide]})</span>. Other lines are
+                context only.
+              </p>
+            ) : (
+              <p className="mt-2 text-neutral-500 text-xs">
+                Pick a side above to see which lines will be analyzed.
+              </p>
+            )}
+            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs">
+              <ChunkText text={job.chunk.text} activeSide={activeSide} />
             </pre>
           </details>
         </div>
       </details>
     </li>
+  )
+}
+
+function ChunkText({ text, activeSide }: { text: string; activeSide: Side | null }) {
+  if (!activeSide) {
+    return <span className="text-neutral-400">{text}</span>
+  }
+  const subjectMarker = SIDE_MARKERS[activeSide]
+  const contextMarker = SIDE_MARKERS[activeSide === 'outgoing' ? 'incoming' : 'outgoing']
+  const lines = text.split('\n')
+  let isSubject = false
+  return (
+    <>
+      {lines.map((line, i) => {
+        if (line.startsWith(subjectMarker)) isSubject = true
+        else if (line.startsWith(contextMarker)) isSubject = false
+        // else: continuation line — inherit previous speaker
+        const cls = isSubject ? 'text-emerald-300' : 'text-neutral-500'
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: lines have no stable id
+          <span key={i} className={cls}>
+            {line}
+            {i < lines.length - 1 ? '\n' : ''}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
+function SummaryPanel({ summary }: { summary: SummaryState }) {
+  if (summary.status === 'idle') return null
+  const sideLabel = SIDE_LABEL[summary.side]
+  return (
+    <section className="rounded-md border border-emerald-900/60 bg-emerald-950/20 p-4">
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-emerald-100 text-sm">
+          Portrait — <span className="text-emerald-300">{sideLabel}</span>{' '}
+          <span className="font-mono text-emerald-500">({SIDE_MARKERS[summary.side]})</span>
+        </h2>
+        <span className="text-emerald-500 text-xs">
+          synthesized from {summary.fragmentCount} fragment(s)
+        </span>
+      </header>
+      {summary.status === 'running' && (
+        <p className="text-neutral-300 text-sm">
+          Synthesizing portrait — this typically takes 30-90s for a long chat.
+        </p>
+      )}
+      {summary.status === 'error' && (
+        <p className="break-all font-mono text-red-400 text-xs">{summary.error}</p>
+      )}
+      {summary.status === 'done' && (
+        <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap font-mono text-neutral-100 text-xs leading-relaxed">
+          {summary.summary}
+        </pre>
+      )}
+    </section>
   )
 }
 

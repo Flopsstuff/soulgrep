@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildPersonaCorpus } from './persona-corpus.ts'
 
 describe('buildPersonaCorpus', () => {
-  it('uses root id as owner (outgoing) and anonymizes speakers with arrow symbols', () => {
+  it('uses root id as counterpart (incoming) and anonymizes speakers with arrow symbols', () => {
     const input = {
       id: 116185284,
       messages: [
@@ -40,9 +40,9 @@ describe('buildPersonaCorpus', () => {
     expect(chunks[0]).toEqual({
       chunk_id: 'c000001',
       messages_count: 3,
-      char_count: '=> hello world\n<= ignore this\n=> array text'.length,
+      char_count: '<= hello world\n=> ignore this\n<= array text'.length,
       word_count: 6,
-      text: '=> hello world\n<= ignore this\n=> array text',
+      text: '<= hello world\n=> ignore this\n<= array text',
     })
   })
 
@@ -66,7 +66,7 @@ describe('buildPersonaCorpus', () => {
     })
 
     expect(chunks).toHaveLength(3)
-    expect(chunks.map((chunk) => chunk.text)).toEqual(['=> one\n<= two', '=> three', '<= four'])
+    expect(chunks.map((chunk) => chunk.text)).toEqual(['<= one\n=> two', '<= three', '=> four'])
     expect(chunks.map((chunk) => chunk.chunk_id)).toEqual(['c000001', 'c000002', 'c000003'])
   })
 
@@ -91,7 +91,7 @@ describe('buildPersonaCorpus', () => {
     })
 
     expect(chunks).toHaveLength(1)
-    expect(chunks[0].text).toBe('<= normal phrase here')
+    expect(chunks[0].text).toBe('=> normal phrase here')
     expect(chunks[0].messages_count).toBe(1)
   })
 
@@ -114,9 +114,9 @@ describe('buildPersonaCorpus', () => {
     })
 
     expect(chunks).toHaveLength(2)
-    expect(chunks[0].text).toBe('=> one two three four\n<= alpha beta gamma delta')
+    expect(chunks[0].text).toBe('<= one two three four\n=> alpha beta gamma delta')
     expect(chunks[0].word_count).toBe(8)
-    expect(chunks[1].text).toBe('=> last pair')
+    expect(chunks[1].text).toBe('<= last pair')
     expect(chunks[1].word_count).toBe(2)
   })
 
@@ -124,10 +124,10 @@ describe('buildPersonaCorpus', () => {
     const input = {
       id: 1,
       messages: [
-        { from_id: 'user1', text: 'first outgoing' },
-        { from_id: 'user1', text: 'second outgoing' },
-        { from_id: 'user2', text: 'first incoming' },
-        { from_id: 'user2', text: 'second incoming' },
+        { from_id: 'user1', text: 'first counterpart' },
+        { from_id: 'user1', text: 'second counterpart' },
+        { from_id: 'user2', text: 'first self' },
+        { from_id: 'user2', text: 'second self' },
       ],
     }
 
@@ -142,7 +142,7 @@ describe('buildPersonaCorpus', () => {
     expect(chunks).toHaveLength(1)
     expect(chunks[0].messages_count).toBe(2)
     expect(chunks[0].text).toBe(
-      '=> first outgoing\nsecond outgoing\n<= first incoming\nsecond incoming',
+      '<= first counterpart\nsecond counterpart\n=> first self\nsecond self',
     )
   })
 
@@ -164,6 +164,6 @@ describe('buildPersonaCorpus', () => {
     })
 
     expect(chunks).toHaveLength(1)
-    expect(chunks[0].text).toBe('=> my number and site\n<= write to or now')
+    expect(chunks[0].text).toBe('<= my number and site\n=> write to or now')
   })
 })
