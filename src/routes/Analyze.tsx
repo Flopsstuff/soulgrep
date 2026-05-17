@@ -462,9 +462,12 @@ function SummaryPanel({ summary }: { summary: SummaryState }) {
           Portrait — <span className="text-emerald-300">{sideLabel}</span>{' '}
           <span className="font-mono text-emerald-500">({SIDE_MARKERS[summary.side]})</span>
         </h2>
-        <span className="text-emerald-500 text-xs">
-          synthesized from {summary.fragmentCount} fragment(s)
-        </span>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-emerald-500">
+            synthesized from {summary.fragmentCount} fragment(s)
+          </span>
+          {summary.status === 'done' && <CopyButton text={summary.summary} />}
+        </div>
       </header>
       {summary.status === 'running' && (
         <p className="flex items-center gap-3 text-neutral-300 text-sm">
@@ -481,6 +484,29 @@ function SummaryPanel({ summary }: { summary: SummaryState }) {
         </pre>
       )}
     </section>
+  )
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(t)
+  }, [copied])
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text)
+          setCopied(true)
+        } catch {}
+      }}
+      className="rounded border border-emerald-900/60 px-2 py-0.5 text-emerald-300 hover:border-emerald-700 hover:text-emerald-100"
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
   )
 }
 
