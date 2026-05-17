@@ -1,9 +1,12 @@
 import { useCallback, useSyncExternalStore } from 'react'
+import { SIDE_MARKERS, type Side } from './persona-corpus'
 
 const CHANGE_EVENT = 'soulgrep:prompts:changed'
 const PSYCHOTYPE_PROMPT_KEY = 'soulgrep:prompt:psychotype:custom'
+const SIGNALS_PROMPT_KEY = 'soulgrep:prompt:signals:custom'
 
 export const PSYCHOTYPE_PROMPT_VERSION = 'v1'
+export const SIGNALS_PROMPT_VERSION = 'v1'
 
 export const DEFAULT_PSYCHOTYPE_SYSTEM_PROMPT = `You are an expert psycholinguistic analyst.
 
@@ -29,6 +32,24 @@ Constraints:
 - Ground every claim in recurring language patterns
 - Prefer "insufficient evidence" over overconfident claims
 - Keep output under 300 words`
+
+export const DEFAULT_SIGNALS_SYSTEM_TEMPLATE = `You extract behavioral and communication signals about the {{SUBJECT_LABEL}} speaker from a chunk of chat messages.
+
+The corpus uses arrow markers at the start of each line:
+- "{{SUBJECT_MARKER}}" lines are the SUBJECT (focus of analysis — the {{SUBJECT_LABEL}} side)
+- "{{CONTEXT_MARKER}}" lines are CONTEXT (the {{CONTEXT_LABEL}} side — use only to interpret the subject's responses, do not profile)
+
+Rules:
+- Extract signals only from SUBJECT "{{SUBJECT_MARKER}}" lines; use context only for situational meaning
+- Each signal must be grounded in observable patterns in this chunk
+- Skip signals you cannot ground in the text — say nothing rather than guess
+- No clinical or diagnostic claims (no DSM labels, no disorders)
+- Prefer concrete, behavioral phrasing over abstract trait labels
+
+Output format: one signal per line, no preamble, no summary:
+- <signal>: <short evidence reference — a paraphrase or representative phrase>
+
+If the chunk has no usable subject content, output a single line: "no signal"`
 
 function emitChange(): void {
   window.dispatchEvent(new Event(CHANGE_EVENT))
@@ -84,5 +105,54 @@ export function usePsychotypePrompt(): [string, (prompt: string) => void, () => 
   )
   const set = useCallback((next: string) => setPsychotypePromptOverride(next), [])
   const clear = useCallback(() => clearPsychotypePromptOverride(), [])
+  return [value, set, clear]
+}
+
+export function getSignalsPromptOverride(): string {
+  return localStorage.getItem(SIGNALS_PROMPT_KEY) ?? ''
+}
+
+export function setSignalsPromptOverride(prompt: string): void {
+  const next = prompt.trim()
+  if (next === '') {
+    localStorage.removeItem(SIGNALS_PROMPT_KEY)
+  } else {
+    localStorage.setItem(SIGNALS_PROMPT_KEY, next)
+  }
+  emitChange()
+}
+
+export function clearSignalsPromptOverride(): void {
+  localStorage.removeItem(SIGNALS_PROMPT_KEY)
+  emitChange()
+}
+
+export function getSignalsPromptTemplate(): string {
+  const override = getSignalsPromptOverride().trim()
+  return override === '' ? DEFAULT_SIGNALS_SYSTEM_TEMPLATE : override
+}
+
+export function getSignalsSystemPrompt(side: Side): string {
+  const template = getSignalsPromptTemplate()
+  const context: Side = side === 'outgoing' ? 'incoming' : 'outgoing'
+  return template
+    .replaceAll('{{SUBJECT_MARKER}}', SIDE_MARKERS[side])
+    .replaceAll('{{CONTEXT_MARKER}}', SIDE_MARKERS[context])
+    .replaceAll('{{SUBJECT_LABEL}}', side)
+    .replaceAll('{{CONTEXT_LABEL}}', context)
+}
+
+export function getSignalsPromptSource(): 'default' | 'custom' {
+  return getSignalsPromptOverride().trim() === '' ? 'default' : 'custom'
+}
+
+export function useSignalsPromptTemplate(): [string, (prompt: string) => void, () => void] {
+  const value = useSyncExternalStore(
+    subscribe,
+    getSignalsPromptTemplate,
+    () => DEFAULT_SIGNALS_SYSTEM_TEMPLATE,
+  )
+  const set = useCallback((next: string) => setSignalsPromptOverride(next), [])
+  const clear = useCallback(() => clearSignalsPromptOverride(), [])
   return [value, set, clear]
 }

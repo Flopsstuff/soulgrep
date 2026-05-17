@@ -9,30 +9,28 @@ vi.mock('../lib/runCorpusInWorker.ts', () => ({
       messages_count: 2,
       char_count: 12,
       word_count: 4,
-      text: '> hello\n< hi back',
+      text: '=> hello\n<= hi back',
     },
   ]),
 }))
 
-const { default: ImportUpload } = await import('./ImportUpload')
+const { default: Import } = await import('./Import')
 
 function renderPage() {
   return render(
     <MemoryRouter>
-      <ImportUpload />
+      <Import />
     </MemoryRouter>,
   )
 }
 
-describe('ImportUpload', () => {
-  it('renders the dropzone and back link', () => {
+describe('Import', () => {
+  it('renders instructions, dropzone, and home link', () => {
     renderPage()
     expect(screen.getByRole('heading', { name: /import a chat/i })).toBeInTheDocument()
+    expect(screen.getByText(/how to export from telegram desktop/i)).toBeInTheDocument()
     expect(screen.getByText(/drop result\.json/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /back to instructions/i })).toHaveAttribute(
-      'href',
-      '/import',
-    )
+    expect(screen.getByRole('link', { name: /home/i })).toHaveAttribute('href', '/')
   })
 
   it('shows chunks summary after processing a file', async () => {
@@ -46,7 +44,7 @@ describe('ImportUpload', () => {
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /download \.jsonl/i })).toBeInTheDocument()
     })
-    // Stats line includes "1" chunks and "2" messages split across <strong> nodes.
+    expect(screen.getByRole('button', { name: /analyze/i })).toBeInTheDocument()
     const summary = screen.getByText(
       (_, el) => el?.tagName === 'P' && /chunks/.test(el.textContent ?? ''),
     )

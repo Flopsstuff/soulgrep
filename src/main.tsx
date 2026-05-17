@@ -4,9 +4,9 @@ import { createBrowserRouter, RouterProvider, redirect } from 'react-router'
 import './index.css'
 import App from './App.tsx'
 import { hasActiveSelection } from './lib/keys.ts'
+import Analyze from './routes/Analyze.tsx'
 import Home from './routes/Home.tsx'
-import ImportInstructions from './routes/ImportInstructions.tsx'
-import ImportUpload from './routes/ImportUpload.tsx'
+import Import from './routes/Import.tsx'
 import NotFound from './routes/NotFound.tsx'
 import Setup from './routes/Setup.tsx'
 
@@ -24,8 +24,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, Component: Home },
       { path: 'setup', Component: Setup },
-      { path: 'import', Component: ImportInstructions },
-      { path: 'import/upload', Component: ImportUpload },
+      { path: 'import', Component: Import },
+      { path: 'import/analyze', Component: Analyze },
       { path: '*', Component: NotFound },
     ],
   },

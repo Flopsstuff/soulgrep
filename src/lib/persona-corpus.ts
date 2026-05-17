@@ -30,8 +30,10 @@ interface RawChatExport {
   messages?: RawMessage[]
 }
 
+export type Side = 'outgoing' | 'incoming'
+
 interface CleanMessage {
-  speaker: 'target' | 'opponent'
+  speaker: Side
   text: string
 }
 
@@ -47,7 +49,7 @@ function collectCleanMessages(
   rawExport: RawChatExport,
   options: BuildPersonaCorpusOptions,
 ): string[] {
-  const targetFromId = resolveTargetFromId(rawExport)
+  const ownerFromId = resolveOwnerFromId(rawExport)
   const speakerMarks = resolveSpeakerMarks(options.speakerFormat)
   const messages = rawExport.messages ?? []
   const result: CleanMessage[] = []
@@ -63,7 +65,7 @@ function collectCleanMessages(
       continue
     }
 
-    const speaker = message.from_id === targetFromId ? 'target' : 'opponent'
+    const speaker: Side = message.from_id === ownerFromId ? 'outgoing' : 'incoming'
     const previous = result[result.length - 1]
 
     if (previous && previous.speaker === speaker) {
@@ -79,12 +81,12 @@ function collectCleanMessages(
 
   return result.map((message) => {
     const speakerPrefix =
-      message.speaker === 'target' ? speakerMarks.targetPrefix : speakerMarks.opponentPrefix
+      message.speaker === 'outgoing' ? speakerMarks.outgoingPrefix : speakerMarks.incomingPrefix
     return `${speakerPrefix} ${message.text}`
   })
 }
 
-function resolveTargetFromId(rawExport: RawChatExport): string {
+function resolveOwnerFromId(rawExport: RawChatExport): string {
   if (rawExport.id === undefined || rawExport.id === null) {
     throw new Error('Root "id" is required in chat export')
   }
@@ -97,20 +99,25 @@ function resolveTargetFromId(rawExport: RawChatExport): string {
   return sourceId.startsWith('user') ? sourceId : `user${sourceId}`
 }
 
+export const SIDE_MARKERS: Record<Side, string> = {
+  outgoing: '=>',
+  incoming: '<=',
+}
+
 function resolveSpeakerMarks(format: BuildPersonaCorpusOptions['speakerFormat']): {
-  targetPrefix: string
-  opponentPrefix: string
+  outgoingPrefix: string
+  incomingPrefix: string
 } {
   if (format === 'roles') {
     return {
-      targetPrefix: 'target',
-      opponentPrefix: 'opponent',
+      outgoingPrefix: 'outgoing',
+      incomingPrefix: 'incoming',
     }
   }
 
   return {
-    targetPrefix: '>',
-    opponentPrefix: '<',
+    outgoingPrefix: SIDE_MARKERS.outgoing,
+    incomingPrefix: SIDE_MARKERS.incoming,
   }
 }
 
@@ -245,6 +252,6 @@ function countWords(text: string): number {
     return 0
   }
 
-  const speakerMarkers = new Set(['>', '<', 'target', 'opponent'])
+  const speakerMarkers = new Set(['=>', '<=', 'outgoing', 'incoming'])
   return speakerMarkers.has(tokens[0]) ? tokens.length - 1 : tokens.length
 }

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
+import { putSession } from '../lib/analysisStore.ts'
 import type { BuildPersonaCorpusOptions, PersonaCorpusChunk } from '../lib/persona-corpus.ts'
 import { runCorpusInWorker } from '../lib/runCorpusInWorker.ts'
 
@@ -19,7 +20,7 @@ type State =
   | { status: 'ready'; file: File; chunks: PersonaCorpusChunk[] }
   | { status: 'error'; file: File; error: string }
 
-export default function ImportUpload() {
+export default function Import() {
   const [state, setState] = useState<State>({ status: 'idle' })
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -47,12 +48,14 @@ export default function ImportUpload() {
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Import a chat</h1>
-        <p className="text-sm text-neutral-400">
-          Drop the Telegram <code className="text-neutral-300">result.json</code>. Everything stays
-          in your browser — no upload to any server.
+        <h1 className="font-semibold text-3xl tracking-tight">Import a chat</h1>
+        <p className="text-neutral-400 text-sm">
+          soulgrep works on a Telegram Desktop JSON export of a single chat. Everything stays in
+          your browser — no upload to any server.
         </p>
       </header>
+
+      <Instructions />
 
       <Dropzone
         dragOver={dragOver}
@@ -75,7 +78,7 @@ export default function ImportUpload() {
       />
 
       {state.status === 'parsing' && (
-        <p className="text-sm text-neutral-400">Parsing {state.file.name}…</p>
+        <p className="text-neutral-400 text-sm">Parsing {state.file.name}…</p>
       )}
 
       {state.status === 'error' && (
@@ -87,12 +90,55 @@ export default function ImportUpload() {
 
       {state.status === 'ready' && <Results file={state.file} chunks={state.chunks} />}
 
-      <footer className="flex items-center justify-between border-t border-neutral-800 pt-6">
-        <Link to="/import" className="text-neutral-500 text-sm hover:text-neutral-300">
-          ← Back to instructions
+      <footer className="flex items-center justify-between border-neutral-800 border-t pt-6">
+        <Link to="/" className="text-neutral-500 text-sm hover:text-neutral-300">
+          ← Home
         </Link>
       </footer>
     </section>
+  )
+}
+
+function Instructions() {
+  return (
+    <details className="group rounded-md border border-neutral-800 bg-neutral-900/40">
+      <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-neutral-200 text-sm">
+        <span>How to export from Telegram Desktop</span>
+        <span className="text-neutral-500 text-xs group-open:hidden">show steps</span>
+        <span className="hidden text-neutral-500 text-xs group-open:inline">hide</span>
+      </summary>
+      <div className="space-y-3 border-neutral-800 border-t px-4 py-4">
+        <ol className="space-y-2 text-neutral-300 text-sm">
+          <li>
+            <span className="mr-2 text-neutral-500">1.</span>
+            Open <strong>Telegram Desktop</strong> (mobile clients cannot export).
+          </li>
+          <li>
+            <span className="mr-2 text-neutral-500">2.</span>
+            Open the chat you want to analyze.
+          </li>
+          <li>
+            <span className="mr-2 text-neutral-500">3.</span>
+            Click the <code className="text-neutral-100">⋯</code> menu →{' '}
+            <strong>Export chat history</strong>.
+          </li>
+          <li>
+            <span className="mr-2 text-neutral-500">4.</span>
+            Under <em>Format</em>, choose <strong>Machine-readable JSON</strong>. Disable photos /
+            videos / stickers — only text is used.
+          </li>
+          <li>
+            <span className="mr-2 text-neutral-500">5.</span>
+            Save the export, then unzip — the file you need is{' '}
+            <code className="text-neutral-100">result.json</code>.
+          </li>
+        </ol>
+        <p className="text-neutral-500 text-xs">
+          Tip: more text from the target speaker = a richer signal. Aim for at least a few thousand
+          of their messages.
+        </p>
+      </div>
+    </details>
   )
 }
 
@@ -143,6 +189,7 @@ function Dropzone({
 }
 
 function Results({ file, chunks }: { file: File; chunks: PersonaCorpusChunk[] }) {
+  const navigate = useNavigate()
   const stats = useMemo(() => summarize(chunks), [chunks])
   const downloadUrl = useMemo(() => {
     const body = chunks.map((c) => JSON.stringify(c)).join('\n')
@@ -154,6 +201,11 @@ function Results({ file, chunks }: { file: File; chunks: PersonaCorpusChunk[] })
 
   const downloadName = `${file.name.replace(/\.json$/i, '')}.chunks.jsonl`
 
+  const onAnalyze = () => {
+    const sessionId = putSession(chunks)
+    navigate('/import/analyze', { state: { sessionId } })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-900/40 px-4 py-3">
@@ -162,13 +214,23 @@ function Results({ file, chunks }: { file: File; chunks: PersonaCorpusChunk[] })
           <strong>{stats.chars.toLocaleString()}</strong> chars ·{' '}
           <strong>{stats.words.toLocaleString()}</strong> words
         </p>
-        <a
-          href={downloadUrl}
-          download={downloadName}
-          className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
-        >
-          Download .jsonl
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href={downloadUrl}
+            download={downloadName}
+            className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
+          >
+            Download .jsonl
+          </a>
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={chunks.length === 0}
+            className="rounded-md border border-emerald-700 bg-emerald-800 px-3 py-1.5 text-emerald-50 text-xs hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Analyze →
+          </button>
+        </div>
       </div>
 
       {chunks.length === 0 ? (
