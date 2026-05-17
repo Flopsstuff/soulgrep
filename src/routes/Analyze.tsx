@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
+import { Spinner } from '../components/Spinner'
 import { dropSession, getSession } from '../lib/analysisStore'
 import { extractSignals } from '../lib/extractSignals'
 import { generateSummary } from '../lib/generateSummary'
@@ -248,17 +249,19 @@ function AnalyzeBody({
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
+                className="inline-flex items-center gap-2 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
               >
-                Cancel
+                <Spinner size="xs" className="text-neutral-300" />
+                Cancel {activeSide ? SIDE_LABEL[activeSide] : ''}
               </button>
             )}
             {summary.status === 'running' ? (
               <button
                 type="button"
                 onClick={onSummaryCancel}
-                className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
+                className="inline-flex items-center gap-2 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-neutral-100 text-xs hover:bg-neutral-700"
               >
+                <Spinner size="xs" className="text-neutral-300" />
                 Cancel summary
               </button>
             ) : (
@@ -342,7 +345,7 @@ function ProgressBar({
       <div className="flex h-full">
         <div className="bg-emerald-500/80" style={{ width: `${donePct}%` }} />
         <div className="bg-red-500/70" style={{ width: `${errorPct}%` }} />
-        <div className="bg-neutral-500/70" style={{ width: `${runningPct}%` }} />
+        <div className="animate-pulse bg-emerald-400/70" style={{ width: `${runningPct}%` }} />
       </div>
     </div>
   )
@@ -391,8 +394,9 @@ function JobItem({
             <p className="break-all font-mono text-red-400 text-xs">{job.error}</p>
           )}
           {(job.status === 'pending' || job.status === 'running') && (
-            <p className="text-neutral-500 text-xs">
-              {job.status === 'running' ? 'Asking the model…' : 'Waiting…'}
+            <p className="flex items-center gap-2 text-neutral-500 text-xs">
+              {job.status === 'running' && <Spinner size="xs" className="text-emerald-300" />}
+              <span>{job.status === 'running' ? 'Asking the model…' : 'Waiting…'}</span>
             </p>
           )}
           <details className="mt-3">
@@ -463,8 +467,9 @@ function SummaryPanel({ summary }: { summary: SummaryState }) {
         </span>
       </header>
       {summary.status === 'running' && (
-        <p className="text-neutral-300 text-sm">
-          Synthesizing portrait — this typically takes 30-90s for a long chat.
+        <p className="flex items-center gap-3 text-neutral-300 text-sm">
+          <Spinner size="md" className="text-emerald-300" />
+          <span>Synthesizing portrait — this typically takes 30-90s for a long chat.</span>
         </p>
       )}
       {summary.status === 'error' && (
@@ -510,10 +515,15 @@ function SideButton({
 function StatusBadge({ status }: { status: JobStatus }) {
   const map: Record<JobStatus, { label: string; cls: string }> = {
     pending: { label: 'pending', cls: 'text-neutral-600' },
-    running: { label: 'running…', cls: 'text-neutral-300' },
+    running: { label: 'running…', cls: 'text-emerald-300' },
     done: { label: '✓ done', cls: 'text-emerald-400' },
     error: { label: '✗ failed', cls: 'text-red-400' },
   }
   const { label, cls } = map[status]
-  return <span className={`font-medium text-xs ${cls}`}>{label}</span>
+  return (
+    <span className={`inline-flex items-center gap-1.5 font-medium text-xs ${cls}`}>
+      {status === 'running' && <Spinner size="xs" />}
+      {label}
+    </span>
+  )
 }

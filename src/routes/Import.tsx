@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { Spinner } from '../components/Spinner.tsx'
 import { putSession } from '../lib/analysisStore.ts'
 import type { BuildPersonaCorpusOptions, PersonaCorpusChunk } from '../lib/persona-corpus.ts'
 import { runCorpusInWorker } from '../lib/runCorpusInWorker.ts'
@@ -78,7 +79,10 @@ export default function Import() {
       />
 
       {state.status === 'parsing' && (
-        <p className="text-neutral-400 text-sm">Parsing {state.file.name}…</p>
+        <p className="flex items-center gap-2 text-neutral-400 text-sm">
+          <Spinner size="sm" className="text-neutral-300" />
+          <span>Parsing {state.file.name}…</span>
+        </p>
       )}
 
       {state.status === 'error' && (
