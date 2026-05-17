@@ -12,7 +12,8 @@
     "format": "biome format --write .",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "corpus:build": "node scripts/build-persona-corpus.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.78",
