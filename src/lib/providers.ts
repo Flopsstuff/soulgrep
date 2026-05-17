@@ -30,7 +30,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
       'gpt-5-mini',
       'gpt-5-nano',
     ],
-    defaultModel: 'gpt-5-mini',
+    defaultModel: 'gpt-5.4',
   },
   anthropic: {
     id: 'anthropic',
@@ -43,7 +43,18 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     }),
     docsUrl: 'https://console.anthropic.com/settings/keys',
     keyHint: 'sk-ant-...',
-    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    models: [
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-opus-4-5',
+      'claude-opus-4-1',
+      'claude-sonnet-4-6',
+      'claude-sonnet-4-6-1m',
+      'claude-sonnet-4-5',
+      'claude-sonnet-4-5-1m',
+      'claude-sonnet-4',
+      'claude-haiku-4-5',
+    ],
     defaultModel: 'claude-sonnet-4-6',
   },
   openrouter: {
