@@ -345,7 +345,7 @@ function ProgressBar({
       <div className="flex h-full">
         <div className="bg-emerald-500/80" style={{ width: `${donePct}%` }} />
         <div className="bg-red-500/70" style={{ width: `${errorPct}%` }} />
-        <div className="animate-pulse bg-emerald-400/70" style={{ width: `${runningPct}%` }} />
+        <div className="bg-emerald-400/30" style={{ width: `${runningPct}%` }} />
       </div>
     </div>
   )
