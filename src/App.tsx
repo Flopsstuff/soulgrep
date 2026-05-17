@@ -1,15 +1,16 @@
-import { Link, Outlet } from 'react-router'
+import { Link, NavLink, Outlet } from 'react-router'
 
 export default function App() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <header className="border-b border-neutral-800">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <Link to="/" className="font-mono text-lg font-bold tracking-tight">
+          <Link to="/" className="font-mono font-bold text-lg tracking-tight">
             soulgrep
           </Link>
-          <nav className="text-sm text-neutral-400">
-            <span className="font-mono">grep the human signal from the noise</span>
+          <nav className="flex items-center gap-5 text-neutral-400 text-sm">
+            <HeaderLink to="/import">Import</HeaderLink>
+            <HeaderLink to="/setup">Setup</HeaderLink>
           </nav>
         </div>
       </header>
@@ -17,5 +18,18 @@ export default function App() {
         <Outlet />
       </main>
     </div>
+  )
+}
+
+function HeaderLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        isActive ? 'text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'
+      }
+    >
+      {children}
+    </NavLink>
   )
 }
