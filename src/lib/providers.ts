@@ -7,6 +7,8 @@ export type Provider = {
   buildHeaders: (key: string) => Record<string, string>
   docsUrl: string
   keyHint: string
+  models: readonly string[]
+  defaultModel: string
 }
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
@@ -17,6 +19,18 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     buildHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
     docsUrl: 'https://platform.openai.com/api-keys',
     keyHint: 'sk-...',
+    models: [
+      'gpt-5.5-pro',
+      'gpt-5.5',
+      'gpt-5.4-pro',
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-5.4-nano',
+      'gpt-5',
+      'gpt-5-mini',
+      'gpt-5-nano',
+    ],
+    defaultModel: 'gpt-5-mini',
   },
   anthropic: {
     id: 'anthropic',
@@ -29,6 +43,8 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     }),
     docsUrl: 'https://console.anthropic.com/settings/keys',
     keyHint: 'sk-ant-...',
+    models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    defaultModel: 'claude-sonnet-4-6',
   },
   openrouter: {
     id: 'openrouter',
@@ -37,6 +53,13 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     buildHeaders: (key) => ({ Authorization: `Bearer ${key}` }),
     docsUrl: 'https://openrouter.ai/settings/keys',
     keyHint: 'sk-or-...',
+    models: [
+      'openai/gpt-5',
+      'anthropic/claude-sonnet-4-6',
+      'google/gemini-2.5-pro',
+      'meta-llama/llama-3.3-70b-instruct',
+    ],
+    defaultModel: 'anthropic/claude-sonnet-4-6',
   },
 }
 

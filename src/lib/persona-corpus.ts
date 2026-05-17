@@ -54,7 +54,7 @@ function collectCleanMessages(
 
   for (const message of messages) {
     const rawText = extractText(message.text)
-    const normalizedText = normalizeMessageText(rawText)
+    const normalizedText = normalizeMessageText(stripLinksAndPhones(rawText))
     if (!normalizedText) {
       continue
     }
@@ -228,6 +228,15 @@ function normalizeMessageText(text: string): string {
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
     .filter(Boolean)
     .join('\n')
+}
+
+function stripLinksAndPhones(text: string): string {
+  const withoutLinks = text
+    .replace(/\bhttps?:\/\/\S+/giu, ' ')
+    .replace(/\bwww\.\S+/giu, ' ')
+    .replace(/\bt\.me\/\S+/giu, ' ')
+
+  return withoutLinks.replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, ' ')
 }
 
 function countWords(text: string): number {

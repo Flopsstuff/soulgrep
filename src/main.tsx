@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider, redirect } from 'react-router'
 import './index.css'
 import App from './App.tsx'
-import { hasAnyKey } from './lib/keys.ts'
+import { hasActiveSelection } from './lib/keys.ts'
 import Home from './routes/Home.tsx'
 import ImportInstructions from './routes/ImportInstructions.tsx'
 import ImportUpload from './routes/ImportUpload.tsx'
@@ -16,7 +16,7 @@ const router = createBrowserRouter([
     Component: App,
     loader: ({ request }) => {
       const { pathname } = new URL(request.url)
-      if (pathname !== '/setup' && !hasAnyKey()) {
+      if (pathname !== '/setup' && !hasActiveSelection()) {
         throw redirect('/setup')
       }
       return null

@@ -143,4 +143,25 @@ describe('buildPersonaCorpus', () => {
     expect(chunks[0].messages_count).toBe(2)
     expect(chunks[0].text).toBe('> first target\nsecond target\n< first opponent\nsecond opponent')
   })
+
+  it('removes links and phone numbers from messages', () => {
+    const input = {
+      id: 1,
+      messages: [
+        { from_id: 'user1', text: 'my number +7 (999) 123-45-67 and site https://example.com' },
+        { from_id: 'user2', text: 'write to www.test.dev or t.me/test_channel now' },
+      ],
+    }
+
+    const chunks = buildPersonaCorpus(input, {
+      minCharsPerChunk: 1,
+      maxCharsPerChunk: 10_000,
+      maxWordsPerChunk: 10_000,
+      maxMessagesPerChunk: 100,
+      dropShortMessages: false,
+    })
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0].text).toBe('> my number and site\n< write to or now')
+  })
 })

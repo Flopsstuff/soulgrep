@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Product
+
+**soulgrep** is an AI-driven chat-message analyzer that infers the psychological profile (psychotype) of a single target speaker from their messages in a chat. The current end-to-end shape:
+
+1. User stores LLM provider API keys (OpenAI / Anthropic / OpenRouter) in `localStorage` via `/setup`.
+2. User exports a Telegram Desktop chat as `result.json` (instructions on `/import`) and uploads it on `/import/upload`.
+3. The upload page parses the JSON in a Web Worker and turns it into a **persona corpus** — chunked, cleaned, speaker-tagged text ready to feed an LLM (`PersonaCorpusChunk[]`). User can download the corpus as `.jsonl`.
+4. LLM-driven psychotype analysis (the actual "soulgrep" step) is **not built yet** — providers and corpus are the foundation laid for it.
+
+All inference is intended to run client-side from the browser using the Vercel AI SDK against the user's own keys; there is no backend.
+
 ## Commands
 
 Package manager is **pnpm** (enforced via `pnpm.onlyBuiltDependencies` allowlist for `esbuild` and `workerd`).
@@ -20,6 +31,7 @@ Package manager is **pnpm** (enforced via `pnpm.onlyBuiltDependencies` allowlist
 | `pnpm exec biome check --write .` | Apply both formatter and safe lint fixes (e.g. organize imports) |
 | `pnpm deploy` | Build, then `wrangler deploy` |
 | `pnpm cf-typegen` | Regenerate Cloudflare env types from `wrangler.jsonc` |
+| `pnpm corpus:build` | Run `scripts/build-persona-corpus.mjs` to chunk a Telegram `result.json` into a `.jsonl` persona corpus from the CLI (`data/` is gitignored) |
 
 ## Architecture
 
@@ -37,12 +49,51 @@ The root `wrangler.jsonc` sets `assets.not_found_handling: "single-page-applicat
 `src/main.tsx` creates a `createBrowserRouter` instance and wraps the tree in `RouterProvider`. The router uses React Router v7's `Component:` field (not `element:`), and the structure is:
 
 ```
-/        → App  (layout with <Outlet />)
-  index  → Home
-  *      → NotFound  (client-side catch-all)
+/                  → App  (layout with header nav + <Outlet />)
+  index            → Home
+  setup            → Setup           (API keys)
+  import           → ImportInstructions  (how to export result.json from Telegram Desktop)
+  import/upload    → ImportUpload    (drop file → Web Worker → PersonaCorpusChunk[])
+  *                → NotFound        (client-side catch-all)
 ```
 
+The root layout has a `loader` in `main.tsx` that redirects to `/setup` whenever no provider key is present in `localStorage` (checked via `hasAnyKey()`). The `/setup` route itself is exempt from the redirect — first-time visitors always land there.
+
 To add a route: create `src/routes/<Name>.tsx`, then add a `{ path, Component }` entry under the `children` array in `main.tsx`. The `*` catch-all must stay last.
+
+### LLM providers & API-key storage
+
+Three provider integrations are wired in: OpenAI, Anthropic, and OpenRouter — via the Vercel AI SDK (`ai` v6, `@ai-sdk/react`, plus `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@openrouter/ai-sdk-provider`). No actual SDK calls yet — only configuration plumbing.
+
+- **`src/lib/providers.ts`** — single source of truth for provider metadata: `id`, `label`, `testUrl` (used by the Setup page's "Test" button to hit the provider's `/models`-style endpoint), `buildHeaders(key)`, `docsUrl`, `keyHint`, plus a curated `models: readonly string[]` and `defaultModel`. The model list is static — no live `/models` fetch. Anthropic requires `anthropic-dangerous-direct-browser-access: true` because we call the API directly from the browser.
+- **`src/lib/keys.ts`** — `localStorage`-backed config store. Persists three things, all reactive through a single custom `soulgrep:keys:changed` event (the `storage` event only fires cross-tab):
+  - **API key per provider** at `soulgrep:keys:<provider>` — `getKey` / `setKey` / `clearKey` / `listKeys` / `hasAnyKey`, hook `useStoredKey(id)`.
+  - **Selected model per provider** at `soulgrep:model:<provider>` — `getModel` / `setModel`, hook `useStoredModel(id)`. `getModel` falls back to `PROVIDERS[id].defaultModel` when nothing is stored, so it always returns a usable model id.
+  - **Active provider** (single) at `soulgrep:active-provider` — `getActiveProvider` / `setActiveProvider`, hook `useActiveProvider()`. This is the (provider, model) pair downstream features will read as `(getActiveProvider(), getModel(getActiveProvider()))`.
+
+  Auto-wiring inside `setKey` / `clearKey`: saving a key when no active provider exists auto-activates that provider; clearing the active provider's key falls back to the first other provider in `PROVIDER_IDS` order that still has a key, or `null`. Clearing a key also wipes that provider's stored model.
+
+  The "fully configured" gate is **`hasActiveSelection()`** (hook: `useHasActiveSelection()`) — true iff an active provider is set AND its key is non-empty. The root loader in `main.tsx` uses this to decide whether to redirect to `/setup`. `hasAnyKey()` is kept for cases where we only care that something is configured.
+
+  All snapshot-getters are SSR-safe (return `''` / `null` / `false` / `defaultModel` on the server).
+- **`src/lib/testKey.ts`** — one-shot fetch to a provider's `testUrl` to verify a key. Model-agnostic — does not exercise any chat endpoint.
+- **`src/lib/pingModel.ts`** — end-to-end model check. Builds the right Vercel AI SDK provider for the `(providerId, key, modelId)` triple and runs `generateText` with `prompt: 'Reply with the single word: pong'` and `maxOutputTokens: 16`. Returns `{ ok: true, reply } | { ok: false, error }`. This is the only place the AI SDK is exercised so far; the future psychotype-analysis feature should reuse `buildModel`-style construction (currently inlined in this file — extract if a second caller appears). Browser-direct calls work because Anthropic gets the `anthropic-dangerous-direct-browser-access: true` header injected via `createAnthropic({ headers })`.
+
+When adding a new provider: extend `ProviderId`, add an entry to `PROVIDERS` (including `models` and `defaultModel`), and append to `PROVIDER_IDS`. The Setup page renders one row per `PROVIDER_IDS` entry automatically.
+
+### Persona corpus pipeline
+
+`src/lib/persona-corpus.ts` is the core data-prep step. `buildPersonaCorpus(rawExport, options) → PersonaCorpusChunk[]` takes a Telegram Desktop `result.json` and produces speaker-tagged, cleaned, chunked text. Non-obvious bits:
+
+- **Target speaker** is identified by the root `id` field of the export. Telegram's per-message `from_id` is prefixed with `user` (e.g. `user12345`), so `resolveTargetFromId` adds the prefix if missing. Throws if `id` is missing/empty.
+- **Speaker tags** default to `>` for the target and `<` for the opponent (`speakerFormat: 'symbols'`). Pass `speakerFormat: 'roles'` to get the literal words `target` / `opponent` instead. Consecutive messages from the same speaker are coalesced into one entry separated by `\n`.
+- **Text cleaning** pipeline per message: `extractText` (handles both `string` and Telegram's `Array<string | {text}>` entity form) → `stripLinksAndPhones` (drops `http(s)://`, `www.`, `t.me/`, and any `+?\d...\d` run of 9+ digits with separators) → `normalizeMessageText` (CRLF→LF, collapse intra-line whitespace, trim, drop blank lines). If `dropShortMessages` is on, anything below `minMessageLength` chars (default 3) or with no letters/digits is dropped.
+- **Chunking** respects three caps: `maxCharsPerChunk` (required), `maxWordsPerChunk` (default 10_000), `maxMessagesPerChunk` (default 1_000). A chunk is also force-flushed when it reaches `minCharsPerChunk`. Speaker-marker tokens (`>`, `<`, `target`, `opponent`) are excluded from word counts. Each chunk gets a sequential `chunk_id` like `c000001`.
+
+Two consumers share this lib:
+
+1. **`scripts/build-persona-corpus.mjs`** (`pnpm corpus:build`) — Node CLI that writes `.jsonl` (one chunk per line). Used for offline experimentation; `data/` is gitignored.
+2. **`src/workers/corpus.worker.ts`** — Web Worker that runs `JSON.parse` + `buildPersonaCorpus` off the main thread, posting back `{type: 'ok', chunks} | {type: 'error', message}`. `src/lib/runCorpusInWorker.ts` wraps it as a typed one-shot Promise helper used by `ImportUpload`. Large Telegram exports would jank the UI on the main thread — always go through the worker for browser-side corpus builds.
 
 ### Styling
 
