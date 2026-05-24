@@ -38,14 +38,14 @@ describe('buildModel', () => {
   })
 
   it('creates an openai model with the given model id', () => {
-    const model = buildModel('openai', 'sk-1', 'gpt-5') as MockModel
+    const model = buildModel('openai', 'sk-1', 'gpt-5') as unknown as MockModel
     expect(model._provider).toBe('openai')
     expect(model.modelId).toBe('gpt-5')
     expect(createOpenAISpy).toHaveBeenCalledWith({ apiKey: 'sk-1' })
   })
 
   it('creates an anthropic model with browser-access header', () => {
-    const model = buildModel('anthropic', 'sk-ant', 'claude-sonnet-4-6') as MockModel
+    const model = buildModel('anthropic', 'sk-ant', 'claude-sonnet-4-6') as unknown as MockModel
     expect(model._provider).toBe('anthropic')
     expect(model.modelId).toBe('claude-sonnet-4-6')
     expect(model._headers).toEqual({
@@ -54,7 +54,7 @@ describe('buildModel', () => {
   })
 
   it('strips the -1m suffix and adds the beta header for long-context anthropic', () => {
-    const model = buildModel('anthropic', 'sk-ant', 'claude-sonnet-4-6-1m') as MockModel
+    const model = buildModel('anthropic', 'sk-ant', 'claude-sonnet-4-6-1m') as unknown as MockModel
     expect(model.modelId).toBe('claude-sonnet-4-6')
     expect(model._headers).toEqual({
       'anthropic-dangerous-direct-browser-access': 'true',
@@ -63,12 +63,16 @@ describe('buildModel', () => {
   })
 
   it('does not add the beta header for non-1m anthropic models', () => {
-    const model = buildModel('anthropic', 'sk-ant', 'claude-opus-4-7') as MockModel
+    const model = buildModel('anthropic', 'sk-ant', 'claude-opus-4-7') as unknown as MockModel
     expect(model._headers).not.toHaveProperty('anthropic-beta')
   })
 
   it('creates an openrouter model with the given model id', () => {
-    const model = buildModel('openrouter', 'sk-or', 'anthropic/claude-sonnet-4-6') as MockModel
+    const model = buildModel(
+      'openrouter',
+      'sk-or',
+      'anthropic/claude-sonnet-4-6',
+    ) as unknown as MockModel
     expect(model._provider).toBe('openrouter')
     expect(model.modelId).toBe('anthropic/claude-sonnet-4-6')
     expect(createOpenRouterSpy).toHaveBeenCalledWith({ apiKey: 'sk-or' })

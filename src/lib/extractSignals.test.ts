@@ -34,7 +34,10 @@ describe('extractSignals', () => {
   })
 
   it('returns ok:true with trimmed signals on success', async () => {
-    generateText.mockResolvedValueOnce({ text: '  MBTI: INFP\nhigh openness  ', finishReason: 'stop' })
+    generateText.mockResolvedValueOnce({
+      text: '  MBTI: INFP\nhigh openness  ',
+      finishReason: 'stop',
+    })
     const result = await extractSignals({
       providerId: 'openai',
       key: 'sk-1',
@@ -85,7 +88,13 @@ describe('extractSignals', () => {
 
   it('passes the chunk text as the prompt to generateText', async () => {
     generateText.mockResolvedValueOnce({ text: 'some signals', finishReason: 'stop' })
-    await extractSignals({ providerId: 'openai', key: 'sk-1', modelId: 'gpt-5', chunk, side: 'outgoing' })
+    await extractSignals({
+      providerId: 'openai',
+      key: 'sk-1',
+      modelId: 'gpt-5',
+      chunk,
+      side: 'outgoing',
+    })
     expect(generateText.mock.calls[0][0].prompt).toBe(chunk.text)
   })
 
