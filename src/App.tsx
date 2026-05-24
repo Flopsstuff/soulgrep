@@ -5,7 +5,10 @@ export default function App() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <header className="border-b border-neutral-800">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2 font-mono font-bold text-lg tracking-tight">
+          <Link
+            to="/"
+            className="flex items-center gap-2 font-mono font-bold text-lg tracking-tight"
+          >
             <SoulgrepMark className="h-5 w-5" />
             soulgrep
           </Link>

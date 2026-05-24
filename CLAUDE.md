@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product
 
-**soulgrep** is an AI-driven chat-message analyzer that infers the psychological profile (psychotype) of a single target speaker from their messages in a chat. The current end-to-end shape:
+**soulgrep** is an AI-driven chat-message analyzer that infers the psychological profile (psychotype) of a single target speaker from their messages in a chat. The full end-to-end pipeline is implemented:
 
 1. User stores LLM provider API keys (OpenAI / Anthropic / OpenRouter) in `localStorage` via `/setup`.
-2. User exports a Telegram Desktop chat as `result.json` (instructions on `/import`) and uploads it on `/import/upload`.
-3. The upload page parses the JSON in a Web Worker and turns it into a **persona corpus** — chunked, cleaned, speaker-tagged text ready to feed an LLM (`PersonaCorpusChunk[]`). User can download the corpus as `.jsonl`.
-4. LLM-driven psychotype analysis (the actual "soulgrep" step) is **not built yet** — providers and corpus are the foundation laid for it.
+2. User exports a Telegram Desktop chat as `result.json` (instructions on `/import`) and uploads it on the same page.
+3. The upload section parses the JSON in a Web Worker and turns it into a **persona corpus** — chunked, cleaned, speaker-tagged text ready to feed an LLM (`PersonaCorpusChunk[]`). User can download the corpus as `.jsonl`.
+4. User navigates to `/import/analyze` where **parallel LLM-driven signal extraction** runs across all chunks (up to 10 concurrent requests), then a **summary synthesis** step merges the signals into a comprehensive psychological portrait. The user chooses which side of the conversation to profile (outgoing or incoming).
 
-All inference is intended to run client-side from the browser using the Vercel AI SDK against the user's own keys; there is no backend.
+All inference runs client-side from the browser using the Vercel AI SDK against the user's own keys; there is no backend.
 
 ## Commands
 
@@ -52,18 +52,18 @@ The root `wrangler.jsonc` sets `assets.not_found_handling: "single-page-applicat
 /                  → App  (layout with header nav + <Outlet />)
   index            → Home
   setup            → Setup           (API keys)
-  import           → ImportInstructions  (how to export result.json from Telegram Desktop)
-  import/upload    → ImportUpload    (drop file → Web Worker → PersonaCorpusChunk[])
+  import           → Import          (instructions + file upload + corpus preview)
+  import/analyze   → Analyze         (parallel signal extraction + portrait synthesis)
   *                → NotFound        (client-side catch-all)
 ```
 
-The root layout has a `loader` in `main.tsx` that redirects to `/setup` whenever no provider key is present in `localStorage` (checked via `hasAnyKey()`). The `/setup` route itself is exempt from the redirect — first-time visitors always land there.
+The root layout has a `loader` in `main.tsx` that redirects to `/setup` whenever no provider key is present in `localStorage` (checked via `hasActiveSelection()`). The `/setup` route itself is exempt from the redirect — first-time visitors always land there.
 
 To add a route: create `src/routes/<Name>.tsx`, then add a `{ path, Component }` entry under the `children` array in `main.tsx`. The `*` catch-all must stay last.
 
 ### LLM providers & API-key storage
 
-Three provider integrations are wired in: OpenAI, Anthropic, and OpenRouter — via the Vercel AI SDK (`ai` v6, `@ai-sdk/react`, plus `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@openrouter/ai-sdk-provider`). No actual SDK calls yet — only configuration plumbing.
+Three provider integrations are wired in: OpenAI, Anthropic, and OpenRouter — via the Vercel AI SDK (`ai` v6, `@ai-sdk/react`, plus `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@openrouter/ai-sdk-provider`).
 
 - **`src/lib/providers.ts`** — single source of truth for provider metadata: `id`, `label`, `testUrl` (used by the Setup page's "Test" button to hit the provider's `/models`-style endpoint), `buildHeaders(key)`, `docsUrl`, `keyHint`, plus a curated `models: readonly string[]` and `defaultModel`. The model list is static — no live `/models` fetch. Anthropic requires `anthropic-dangerous-direct-browser-access: true` because we call the API directly from the browser.
 - **`src/lib/keys.ts`** — `localStorage`-backed config store. Persists three things, all reactive through a single custom `soulgrep:keys:changed` event (the `storage` event only fires cross-tab):
@@ -77,9 +77,22 @@ Three provider integrations are wired in: OpenAI, Anthropic, and OpenRouter — 
 
   All snapshot-getters are SSR-safe (return `''` / `null` / `false` / `defaultModel` on the server).
 - **`src/lib/testKey.ts`** — one-shot fetch to a provider's `testUrl` to verify a key. Model-agnostic — does not exercise any chat endpoint.
-- **`src/lib/pingModel.ts`** — end-to-end model check. Builds the right Vercel AI SDK provider for the `(providerId, key, modelId)` triple and runs `generateText` with `prompt: 'Reply with the single word: pong'` and `maxOutputTokens: 16`. Returns `{ ok: true, reply } | { ok: false, error }`. This is the only place the AI SDK is exercised so far; the future psychotype-analysis feature should reuse `buildModel`-style construction (currently inlined in this file — extract if a second caller appears). Browser-direct calls work because Anthropic gets the `anthropic-dangerous-direct-browser-access: true` header injected via `createAnthropic({ headers })`.
+- **`src/lib/pingModel.ts`** — end-to-end model check. Uses `buildModel` (see below) and runs `generateText` with `prompt: 'Reply with the single word: pong'` and `maxOutputTokens: 16`. Returns `{ ok: true, reply } | { ok: false, error }`.
+- **`src/lib/buildModel.ts`** — factory that creates the correct Vercel AI SDK `LanguageModel` for a `(providerId, key, modelId)` triple. Handles provider-specific setup (Anthropic's browser-access header, `-1m` long-context suffix → `anthropic-beta` header). Shared by `pingModel`, `extractSignals`, and `generateSummary`.
 
 When adding a new provider: extend `ProviderId`, add an entry to `PROVIDERS` (including `models` and `defaultModel`), and append to `PROVIDER_IDS`. The Setup page renders one row per `PROVIDER_IDS` entry automatically.
+
+### Analysis pipeline
+
+The core analysis flow (the actual "soulgrep" step) lives in three modules:
+
+- **`src/lib/extractSignals.ts`** — takes a single `PersonaCorpusChunk` and calls `generateText` with the signals system prompt to extract behavioral observations. Returns `SignalsResult` (ok/error discriminated union). Called in parallel across all chunks via `runPool`.
+- **`src/lib/generateSummary.ts`** — takes all successful signal fragments and calls `generateText` with the summary system prompt to synthesize a comprehensive psychological portrait. The prompt concatenates all fragment signals in chronological order.
+- **`src/lib/prompts.ts`** — contains `DEFAULT_SIGNALS_SYSTEM_TEMPLATE` and `DEFAULT_SUMMARY_SYSTEM_TEMPLATE` (the two large system prompts). Both support `localStorage`-based overrides so power users can customize the analysis prompts without touching code. Template placeholders (`{{SUBJECT_MARKER}}`, `{{SUBJECT_LABEL}}`, etc.) are resolved at call time based on the selected analysis side (outgoing/incoming). Versioned with `SIGNALS_PROMPT_VERSION` / `SUMMARY_PROMPT_VERSION`. React hooks (`useSignalsPromptTemplate`, `useSummaryPromptTemplate`) expose reactive state.
+- **`src/lib/runPool.ts`** — generic concurrency-limited async pool. Used by `Analyze.tsx` to run up to 10 parallel `extractSignals` calls.
+- **`src/lib/analysisStore.ts`** — ephemeral in-memory `Map<string, PersonaCorpusChunk[]>` that passes corpus data from the Import page to the Analyze page via `location.state.sessionId`. Cleaned up on unmount.
+
+The `Analyze` route (`src/routes/Analyze.tsx`) orchestrates the full flow: chunk job tracking, parallel extraction, per-chunk retry on error, summary synthesis, progress bar, and a copy-to-clipboard portrait panel.
 
 ### Persona corpus pipeline
 
@@ -93,7 +106,7 @@ When adding a new provider: extend `ProviderId`, add an entry to `PROVIDERS` (in
 Two consumers share this lib:
 
 1. **`scripts/build-persona-corpus.mjs`** (`pnpm corpus:build`) — Node CLI that writes `.jsonl` (one chunk per line). Used for offline experimentation; `data/` is gitignored.
-2. **`src/workers/corpus.worker.ts`** — Web Worker that runs `JSON.parse` + `buildPersonaCorpus` off the main thread, posting back `{type: 'ok', chunks} | {type: 'error', message}`. `src/lib/runCorpusInWorker.ts` wraps it as a typed one-shot Promise helper used by `ImportUpload`. Large Telegram exports would jank the UI on the main thread — always go through the worker for browser-side corpus builds.
+2. **`src/workers/corpus.worker.ts`** — Web Worker that runs `JSON.parse` + `buildPersonaCorpus` off the main thread, posting back `{type: 'ok', chunks} | {type: 'error', message}`. `src/lib/runCorpusInWorker.ts` wraps it as a typed one-shot Promise helper used by the Import page. Large Telegram exports would jank the UI on the main thread — always go through the worker for browser-side corpus builds.
 
 ### Styling
 

@@ -5,7 +5,5 @@
   "assets": {
     "not_found_handling": "single-page-application"
   },
-  "routes": [
-    { "pattern": "soulgrep.aignite.pl", "custom_domain": true }
-  ]
+  "routes": [{ "pattern": "soulgrep.aignite.pl", "custom_domain": true }]
 }

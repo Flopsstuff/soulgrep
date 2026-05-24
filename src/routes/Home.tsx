@@ -61,8 +61,8 @@ export default function Home() {
             picked up and where.
           </Bullet>
           <Bullet>
-            A synthesized portrait at the end: a coherent psychotype sketch instead of a wall of
-            raw observations.
+            A synthesized portrait at the end: a coherent psychotype sketch instead of a wall of raw
+            observations.
           </Bullet>
         </ul>
       </Section>
@@ -78,8 +78,8 @@ export default function Home() {
             Clearing site data wipes them.
           </Bullet>
           <Bullet>
-            Chat content is processed in your browser; chunks go directly to the provider you
-            chose, under your key, billed to your account.
+            Chat content is processed in your browser; chunks go directly to the provider you chose,
+            under your key, billed to your account.
           </Bullet>
         </ul>
       </Section>
